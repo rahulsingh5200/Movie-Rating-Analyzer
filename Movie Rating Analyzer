@@ -1,0 +1,146 @@
+import io
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+def clean_and_load_data(csv_data):
+    """
+    Loads CSV data, validates ratings (0-10, numeric),
+    skips invalid/missing/duplicate rows, and prints validation messages.
+    """
+    lines = csv_data.strip().split("\n")
+    valid_rows = []
+    skipped_count = 0
+
+    for idx, line in enumerate(lines, start=1):
+        parts = line.strip().split(",")
+        if len(parts) != 3:
+            continue
+        
+        movie, genre, rating_str = parts[0].strip(), parts[1].strip(), parts[2].strip()
+
+        # Validate numeric rating
+        try:
+            rating = float(rating_str)
+        except ValueError:
+            print(f"Row {idx} skipped: invalid Rating '{rating_str}'.")
+            skipped_count += 1
+            continue
+
+        # Validate rating range (0 to 10)
+        if rating < 0 or rating > 10:
+            print(f"Row {idx} skipped: Rating {int(rating) if rating.is_integer() else rating} must be between 0 and 10.")
+            skipped_count += 1
+            continue
+
+        valid_rows.append({"Movie": movie, "Genre": genre, "Rating": rating})
+
+    # Create DataFrame and remove duplicate rows if any
+    df = pd.DataFrame(valid_rows)
+    if not df.empty:
+        df = df.drop_duplicates()
+
+    if skipped_count > 0 or not df.empty:
+        # Check if invalid output format specifically calls for listing valid rows
+        if skipped_count > 0:
+            print(f"Valid rows: {len(df)}")
+
+    return df
+
+
+def menu_summary(df):
+    """Option 1: Display overall summary (Average rating, top rated, lowest rated)."""
+    if df.empty:
+        print("No valid data available.")
+        return
+
+    avg_rating = df["Rating"].mean()
+    
+    top_movie_row = df.loc[df["Rating"].idxmax()]
+    lowest_movie_row = df.loc[df["Rating"].idxmin()]
+
+    # Format output based on single row vs multi row cases
+    if len(df) == 1:
+        top_rating_str = f"{int(top_movie_row['Rating'])}" if top_movie_row['Rating'].is_integer() else f"{top_movie_row['Rating']}"
+        lowest_rating_str = f"{int(lowest_movie_row['Rating'])}" if lowest_movie_row['Rating'].is_integer() else f"{lowest_movie_row['Rating']}"
+        
+        print(f"Average rating: {avg_rating:.2f}")
+        print(f"Top rated: {top_movie_row['Movie']} ({top_rating_str}) | Lowest: {lowest_movie_row['Movie']} ({lowest_rating_str})")
+    else:
+        print(f"Average rating: {avg_rating:.2f}")
+        print(f"Top rated: {top_movie_row['Movie']} ({top_movie_row['Rating']})")
+        print(f"Lowest: {lowest_movie_row['Movie']} ({lowest_movie_row['Rating']})")
+
+
+def menu_genre_average(df, show_chart=True):
+    """Option 2: Display genre-wise average ratings and best genre."""
+    if df.empty:
+        print("No valid data available.")
+        return
+
+    # Group by genre and calculate mean
+    genre_avg = df.groupby("Genre")["Rating"].mean()
+
+    # Format genre output string
+    genre_str_list = [f"{genre}: {avg:.2f}" for genre, avg in genre_avg.items()]
+    print(" | ".join(genre_str_list))
+
+    best_genre = genre_avg.idxmax()
+    print(f"Best genre: {best_genre}")
+
+    if show_chart:
+        print("Bar chart 'Genre-wise Average Rating' displayed")
+        
+        # Plot 1: Bar Chart of Genre-wise Average Rating
+        plt.figure(figsize=(8, 5))
+        genre_avg.plot(kind="bar", color="skyblue", edgecolor="black")
+        plt.title("Genre-wise Average Rating")
+        plt.xlabel("Genre")
+        plt.ylabel("Average Rating")
+        plt.ylim(0, 10)
+        plt.grid(axis="y", linestyle="--", alpha=0.7)
+        plt.tight_layout()
+        plt.show()
+
+
+def plot_histogram(df):
+    """Plot distribution of movie ratings."""
+    if df.empty:
+        return
+
+    plt.figure(figsize=(8, 5))
+    plt.hist(df["Rating"], bins=5, color="lightgreen", edgecolor="black")
+    plt.title("Distribution of Movie Ratings")
+    plt.xlabel("Rating")
+    plt.ylabel("Number of Movies")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.tight_layout()
+    plt.show()
+
+
+# ==========================================
+# TEST CASES EXECUTION
+# ==========================================
+
+if __name__ == "__main__":
+    print("--- Test Case 1: Normal Input ---")
+    tc1_data = """Inception,SciFi,8.8
+Titanic,Romance,7.9
+Interstellar,SciFi,8.6"""
+    df1 = clean_and_load_data(tc1_data)
+    menu_summary(df1)
+
+    print("\n--- Test Case 2: Boundary / Minimum Input ---")
+    tc2_data = """Sholay,Action,10"""
+    df2 = clean_and_load_data(tc2_data)
+    menu_summary(df2)
+
+    print("\n--- Test Case 3: Invalid Input ---")
+    tc3_data = """Inception,SciFi,8.8
+Titanic,Romance,11
+Dangal,Drama,abc"""
+    df3 = clean_and_load_data(tc3_data)
+
+    print("\n--- Test Case 4: Different Valid Scenario ---")
+    df4 = clean_and_load_data(tc1_data)  # Same CSV as Test Case 1
+    menu_genre_average(df4, show_chart=False) # Set show_chart=True when running locally to pop up matplotlib window
